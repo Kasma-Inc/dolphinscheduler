@@ -91,6 +91,11 @@ export function useDatasource(
       id: 10,
       code: 'ATHENA',
       disabled: false
+    },
+    {
+      id: 11,
+      code: 'NEO4J',
+      disabled: false
     }
   ]
 

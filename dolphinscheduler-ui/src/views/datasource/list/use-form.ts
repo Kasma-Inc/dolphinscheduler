@@ -240,6 +240,11 @@ export const datasourceType: IDataBaseOptionKeys = {
     value: 'ATHENA',
     label: 'ATHENA',
     defaultPort: 0
+  },
+  NEO4J: {
+    value: 'NEO4J',
+    label: 'NEO4J',
+    defaultPort: 7687
   }
 }
 

@@ -35,6 +35,7 @@ public class DataSourceConstants {
     public static final String COM_PRESTO_JDBC_DRIVER = "com.facebook.presto.jdbc.PrestoDriver";
     public static final String COM_REDSHIFT_JDBC_DRIVER = "com.amazon.redshift.jdbc42.Driver";
     public static final String COM_ATHENA_JDBC_DRIVER = "com.simba.athena.jdbc.Driver";
+    public static final String ORG_NEO4J_JDBC_DRIVER = "org.neo4j.jdbc.bolt.BoltDriver";
 
     /**
      * validation Query
@@ -49,6 +50,7 @@ public class DataSourceConstants {
     public static final String PRESTO_VALIDATION_QUERY = "select 1";
     public static final String REDHIFT_VALIDATION_QUERY = "select 1";
     public static final String ATHENA_VALIDATION_QUERY = "select 1";
+    public static final String NEO4J_VALIDATION_QUERY = "return 1";
 
     /**
      * jdbc url
@@ -64,6 +66,7 @@ public class DataSourceConstants {
     public static final String JDBC_PRESTO = "jdbc:presto://";
     public static final String JDBC_REDSHIFT = "jdbc:redshift://";
     public static final String JDBC_ATHENA = "jdbc:awsathena://";
+    public static final String JDBC_NEO4J = "jdbc:neo4j:bolt://";
 
     /**
      * database type
