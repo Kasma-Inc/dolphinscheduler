@@ -68,6 +68,8 @@ public class DataSourceConstants {
     public static final String JDBC_ATHENA = "jdbc:awsathena://";
     public static final String JDBC_NEO4J = "jdbc:neo4j:bolt://";
 
+    public static final String BOLT_NEO4J = "bolt://";
+
     /**
      * database type
      */

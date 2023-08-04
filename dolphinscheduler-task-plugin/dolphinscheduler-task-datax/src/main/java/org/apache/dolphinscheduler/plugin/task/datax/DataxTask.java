@@ -33,6 +33,7 @@ import static org.apache.dolphinscheduler.plugin.datasource.api.utils.PasswordUt
 import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.EXIT_CODE_FAILURE;
 import static org.apache.dolphinscheduler.plugin.task.api.TaskConstants.RWXR_XR_X;
 
+import org.apache.dolphinscheduler.common.constants.DataSourceConstants;
 import org.apache.dolphinscheduler.common.utils.JSONUtils;
 import org.apache.dolphinscheduler.plugin.datasource.api.plugin.DataSourceClientProvider;
 import org.apache.dolphinscheduler.plugin.datasource.api.utils.DataSourceUtils;
@@ -88,7 +89,7 @@ public class DataxTask extends AbstractTask {
     /**
      * python process(datax only supports version 2.7 by default)
      */
-    private static final String DATAX_PYTHON = "python2.7";
+    private static final String DATAX_PYTHON = "python3";
     private static final Pattern PYTHON_PATH_PATTERN = Pattern.compile("/bin/python[\\d.]*$");
     /**
      * datax path
@@ -238,14 +239,39 @@ public class DataxTask extends AbstractTask {
      */
     private List<ObjectNode> buildDataxJobContentJson() {
 
+        DbType sourceType = dataxTaskExecutionContext.getSourcetype();
         BaseConnectionParam dataSourceCfg = (BaseConnectionParam) DataSourceUtils.buildConnectionParams(
-                dataxTaskExecutionContext.getSourcetype(),
+                sourceType,
                 dataxTaskExecutionContext.getSourceConnectionParams());
 
+        DbType targetType = dataxTaskExecutionContext.getTargetType();
         BaseConnectionParam dataTargetCfg = (BaseConnectionParam) DataSourceUtils.buildConnectionParams(
-                dataxTaskExecutionContext.getTargetType(),
+                targetType,
                 dataxTaskExecutionContext.getTargetConnectionParams());
 
+        ObjectNode reader;
+        ObjectNode writer;
+        if (DbType.NEO4J.equals(sourceType)) {
+            reader = buildNeo4jReader(sourceType, dataSourceCfg);
+        } else {
+            reader = buildCommonReader(sourceType, dataSourceCfg);
+        }
+        if (DbType.NEO4J.equals(targetType)) {
+            writer = buildNeo4jWriter(sourceType, dataSourceCfg, targetType, dataTargetCfg);
+        } else {
+            writer = buildCommonWriter(sourceType, dataSourceCfg, targetType, dataTargetCfg);
+        }
+
+        List<ObjectNode> contentList = new ArrayList<>();
+        ObjectNode content = JSONUtils.createObjectNode();
+        content.set("reader", reader);
+        content.set("writer", writer);
+        contentList.add(content);
+
+        return contentList;
+    }
+
+    private ObjectNode buildCommonReader(DbType sourceType, BaseConnectionParam dataSourceCfg) {
         List<ObjectNode> readerConnArr = new ArrayList<>();
         ObjectNode readerConn = JSONUtils.createObjectNode();
 
@@ -265,31 +291,50 @@ public class DataxTask extends AbstractTask {
         readerParam.putArray("connection").addAll(readerConnArr);
 
         ObjectNode reader = JSONUtils.createObjectNode();
-        reader.put("name", DataxUtils.getReaderPluginName(dataxTaskExecutionContext.getSourcetype()));
+        reader.put("name", DataxUtils.getReaderPluginName(sourceType));
         reader.set("parameter", readerParam);
+        return reader;
+    }
 
+
+    public ObjectNode buildNeo4jReader(DbType sourceType, BaseConnectionParam dataSourceCfg) {
+        String jdbcUrl = DataSourceUtils.getJdbcUrl(DbType.valueOf(dataXParameters.getDsType()),
+                dataSourceCfg);
+        String boltUrl = jdbcUrl.replace(DataSourceConstants.JDBC_NEO4J,
+                DataSourceConstants.BOLT_NEO4J);
+
+        ObjectNode readerParam = JSONUtils.createObjectNode();
+        readerParam.put("boltUrl", boltUrl);
+        readerParam.put("username", dataSourceCfg.getUser());
+        readerParam.put("password", decodePassword(dataSourceCfg.getPassword()));
+        readerParam.put("query", dataXParameters.getSql());
+
+        ObjectNode reader = JSONUtils.createObjectNode();
+        reader.put("name", DataxUtils.getReaderPluginName(sourceType));
+        reader.set("parameter", readerParam);
+        return reader;
+    }
+
+
+    public ObjectNode buildCommonWriter(DbType sourceType, BaseConnectionParam dataSourceCfg,
+            DbType targetType, BaseConnectionParam dataTargetCfg) {
         List<ObjectNode> writerConnArr = new ArrayList<>();
         ObjectNode writerConn = JSONUtils.createObjectNode();
         ArrayNode tableArr = writerConn.putArray("table");
         tableArr.add(dataXParameters.getTargetTable());
-
         writerConn.put("jdbcUrl", DataSourceUtils.getJdbcUrl(DbType.valueOf(dataXParameters.getDtType()), dataTargetCfg));
         writerConnArr.add(writerConn);
 
         ObjectNode writerParam = JSONUtils.createObjectNode();
         writerParam.put("username", dataTargetCfg.getUser());
         writerParam.put("password", decodePassword(dataTargetCfg.getPassword()));
-
-        String[] columns = parsingSqlColumnNames(dataxTaskExecutionContext.getSourcetype(),
-                dataxTaskExecutionContext.getTargetType(),
-                dataSourceCfg, dataXParameters.getSql());
-
+        String[] columns = parsingSqlColumnNames(sourceType, targetType, dataSourceCfg,
+                dataXParameters.getSql());
         ArrayNode columnArr = writerParam.putArray("column");
         for (String column : columns) {
             columnArr.add(column);
         }
         writerParam.putArray("connection").addAll(writerConnArr);
-
         if (CollectionUtils.isNotEmpty(dataXParameters.getPreStatements())) {
             ArrayNode preSqlArr = writerParam.putArray("preSql");
             for (String preSql : dataXParameters.getPreStatements()) {
@@ -297,7 +342,6 @@ public class DataxTask extends AbstractTask {
             }
 
         }
-
         if (CollectionUtils.isNotEmpty(dataXParameters.getPostStatements())) {
             ArrayNode postSqlArr = writerParam.putArray("postSql");
             for (String postSql : dataXParameters.getPostStatements()) {
@@ -306,16 +350,69 @@ public class DataxTask extends AbstractTask {
         }
 
         ObjectNode writer = JSONUtils.createObjectNode();
-        writer.put("name", DataxUtils.getWriterPluginName(dataxTaskExecutionContext.getTargetType()));
+        writer.put("name", DataxUtils.getWriterPluginName(targetType));
         writer.set("parameter", writerParam);
+        return writer;
+    }
 
-        List<ObjectNode> contentList = new ArrayList<>();
-        ObjectNode content = JSONUtils.createObjectNode();
-        content.set("reader", reader);
-        content.set("writer", writer);
-        contentList.add(content);
+    public ObjectNode buildNeo4jWriter(DbType sourceType, BaseConnectionParam dataSourceCfg,
+            DbType targetType, BaseConnectionParam dataTargetCfg) {
+        String jdbcUrl = DataSourceUtils.getJdbcUrl(DbType.valueOf(dataXParameters.getDtType()),
+                dataTargetCfg);
+        String boltUrl = jdbcUrl.replace(DataSourceConstants.JDBC_NEO4J,
+                DataSourceConstants.BOLT_NEO4J);
+        String label = dataXParameters.getTargetTable();
+        String[] columns = parsingSqlColumnNames(sourceType, targetType, dataSourceCfg,
+                dataXParameters.getSql());
+        Map<String, Property> map = taskExecutionContext.getPrepareParamsMap();
+        Property defaultProperty = new Property();
+        String type = map.getOrDefault("type", defaultProperty).getValue();
+        String source = map.getOrDefault("sourceType", defaultProperty).getValue();
+        String sourceField = map.getOrDefault("sourceField", defaultProperty).getValue();
+        String sourceUniqueField = map.getOrDefault("sourceUniqueField", defaultProperty).getValue();
+        String target = map.getOrDefault("targetType", defaultProperty).getValue();
+        String targetField = map.getOrDefault("targetField", defaultProperty).getValue();
+        String targetUniqueField = map.getOrDefault("targetUniqueField", defaultProperty).getValue();
+        String direction = map.getOrDefault("direction", defaultProperty).getValue();
+        String writeMode = map.getOrDefault("writeMode", defaultProperty).getValue();
+        int batchSize = dataXParameters.getJobSpeedRecord();
 
-        return contentList;
+        ObjectNode writerParam = JSONUtils.createObjectNode();
+        writerParam.put("boltUrl", boltUrl);
+        writerParam.put("username", dataTargetCfg.getUser());
+        writerParam.put("password", decodePassword(dataTargetCfg.getPassword()));
+        writerParam.put("label", label);
+        writerParam.put("type", type);
+        ArrayNode columnArr = writerParam.putArray("properties");
+        for (String column : columns) {
+            columnArr.add(column);
+        }
+        writerParam.put("sourceType", source);
+        writerParam.put("sourceField", sourceField);
+        writerParam.put("sourceUniqueField", sourceUniqueField);
+        writerParam.put("targetType", target);
+        writerParam.put("targetField", targetField);
+        writerParam.put("targetUniqueField", targetUniqueField);
+        writerParam.put("direction", direction);
+        if (CollectionUtils.isNotEmpty(dataXParameters.getPreStatements())) {
+            ArrayNode preStatements = writerParam.putArray("preStatements");
+            for (String preSql : dataXParameters.getPreStatements()) {
+                preStatements.add(preSql);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(dataXParameters.getPostStatements())) {
+            ArrayNode postStatements = writerParam.putArray("postStatements");
+            for (String postSql : dataXParameters.getPostStatements()) {
+                postStatements.add(postSql);
+            }
+        }
+        writerParam.put("writeMode", writeMode);
+        writerParam.put("batchSize", batchSize);
+
+        ObjectNode writer = JSONUtils.createObjectNode();
+        writer.put("name", DataxUtils.getWriterPluginName(targetType));
+        writer.set("parameter", writerParam);
+        return writer;
     }
 
     /**
@@ -470,6 +567,20 @@ public class DataxTask extends AbstractTask {
      */
     private String[] parsingSqlColumnNames(DbType sourceType, DbType targetType, BaseConnectionParam dataSourceCfg, String sql) {
         String[] columnNames = tryGrammaticalAnalysisSqlColumnNames(sourceType, sql);
+
+        if (DbType.NEO4J.equals(sourceType)) {
+            sql = sql.toUpperCase();
+            String[] columns = sql.substring(sql.lastIndexOf("RETURN") + 7).split(",");
+            columnNames = new String[columns.length];
+            for (int i = 0; i < columns.length; i++) {
+                String columnName = columns[i].trim();
+                if (columnName.contains("AS")) {
+                    String[] split = columnName.split("AS");
+                    columnName = split[1].trim();
+                }
+                columnNames[i] = columnName;
+            }
+        }
 
         if (columnNames == null || columnNames.length == 0) {
             logger.info("try to execute sql analysis query column name");
