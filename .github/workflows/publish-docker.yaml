@@ -19,14 +19,14 @@ name: publish-docker
 on:
   push:
     branches:
-      - dev
+      - graxy-dev
   release:
     types:
       - released
 
 jobs:
   build:
-    if: github.repository == 'apache/dolphinscheduler'
+    if: github.repository == 'Kasma-Inc/dolphinscheduler'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -50,10 +50,10 @@ jobs:
             echo "HUB=apache" >> $GITHUB_ENV
             echo "DOCKER_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
           else
-            echo "DOCKER_REGISTRY=ghcr.io/apache/dolphinscheduler" >> $GITHUB_ENV
+            echo "DOCKER_REGISTRY=docker.io" >> $GITHUB_ENV
             echo "DOCKER_USERNAME=${{ github.actor }}" >> $GITHUB_ENV
             echo "DOCKER_PASSWORD=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
-            echo "HUB=ghcr.io/apache/dolphinscheduler" >> $GITHUB_ENV
+            echo "HUB=docker.io/lewinma/dolphinscheduler" >> $GITHUB_ENV
             echo "DOCKER_TAG=${{ github.sha }}" >> $GITHUB_ENV
           fi
       - name: Log in to the Container registry

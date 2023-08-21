@@ -17,19 +17,18 @@
 version: "3.8"
 
 services:
-  dolphinscheduler-postgresql:
-    image: bitnami/postgresql:15.2.0
+  dolphinscheduler-mysql:
+    image: bitnami/mysql:8.1.0
     ports:
-      - "5432:5432"
+      - "3306:3306"
     profiles: ["all", "schema"]
     environment:
-      POSTGRESQL_USERNAME: root
-      POSTGRESQL_PASSWORD: root
-      POSTGRESQL_DATABASE: dolphinscheduler
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: dolphinscheduler
     volumes:
-      - dolphinscheduler-postgresql:/bitnami/postgresql
+      - dolphinscheduler-mysql:/bitnami/mysql/data
     healthcheck:
-      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/5432"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
       interval: 5s
       timeout: 60s
       retries: 120
@@ -149,7 +148,7 @@ networks:
     driver: bridge
 
 volumes:
-  dolphinscheduler-postgresql:
+  dolphinscheduler-mysql:
   dolphinscheduler-zookeeper:
   dolphinscheduler-worker-data:
   dolphinscheduler-logs:
