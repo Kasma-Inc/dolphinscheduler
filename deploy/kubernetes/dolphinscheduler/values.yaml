@@ -39,7 +39,7 @@ image:
 
 ## If not exists external database, by default, Dolphinscheduler's database will use it.
 postgresql:
-  enabled: true
+  enabled: false
   postgresqlUsername: "root"
   postgresqlPassword: "root"
   postgresqlDatabase: "dolphinscheduler"
@@ -51,7 +51,7 @@ postgresql:
     storageClass: "-"
 
 mysql:
-  enabled: false
+  enabled: true
   driverClassName: "com.mysql.cj.jdbc.Driver"
   auth:
     username: "ds"
