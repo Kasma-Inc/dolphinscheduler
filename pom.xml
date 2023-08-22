@@ -86,7 +86,7 @@
         <exec-maven-plugin.version>3.0.0</exec-maven-plugin.version>
         <owasp-dependency-check-maven.version>7.1.2</owasp-dependency-check-maven.version>
         <lombok.version>1.18.20</lombok.version>
-        <docker.hub>apache</docker.hub>
+        <docker.hub>lewinma</docker.hub>
         <docker.repo>${project.name}</docker.repo>
         <docker.tag>${project.version}</docker.tag>
         <docker.build.skip>true</docker.build.skip>
